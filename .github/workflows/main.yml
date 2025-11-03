@@ -1,0 +1,38 @@
+name: VakantieDiscounter Deal Finder
+
+on:
+  # Draait de bot elke 15 minuten (0, 15, 30, 45 minuten na het hele uur)
+  schedule:
+    - cron: '*/15 * * * *'
+  
+  # Hiermee kun je de bot ook handmatig starten via de "Actions" tab in GitHub
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest # Draai op een Linux machine van GitHub
+
+    steps:
+      - name: 1. Code ophalen uit de repository
+        uses: actions/checkout@v3
+
+      - name: 2. Python installeren
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: 3. Google Chrome installeren
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+
+      - name: 4. Python-bibliotheken installeren
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: 5. De bot draaien
+        run: python discounter_bot.py
+        env:
+          # Hier wordt je geheime webhook URL veilig doorgegeven aan het script
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
