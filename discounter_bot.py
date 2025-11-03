@@ -11,7 +11,6 @@ import sys
 import os
 
 # --- CONFIGURATIE ---
-# Haalt de Webhook URL veilig uit de GitHub Secrets. Je hoeft hier niets aan te passen.
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 MAX_PRICE = 1200.00
 found_deals = set()
@@ -44,7 +43,7 @@ def scrape_vakantiediscounter():
         options = uc.ChromeOptions()
         options.add_argument('--headless')
         options.add_argument('--no-sandbox')
-        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-dev-sh-usage')
         driver = uc.Chrome(options=options)
         driver.maximize_window()
         logging.info("Browser succesvol opgestart.")
@@ -74,14 +73,19 @@ def scrape_vakantiediscounter():
             logging.info("'Bedankt voor feedback' melding gesloten.")
         except: logging.warning("'Bedankt voor feedback' melding niet gevonden/geklikt.")
         
+        # --- DEBUGGING STAP: ALTIJD EEN SCREENSHOT MAKEN ---
+        logging.info("Alle pop-ups verwerkt. Screenshot wordt gemaakt voor analyse...")
+        screenshot_filename = "server_view.png"
+        driver.save_screenshot(screenshot_filename)
+        logging.info(f"Screenshot '{screenshot_filename}' succesvol opgeslagen.")
+        
         try:
             logging.info("Wachten tot de deal-kaarten ('AccoCard') aanwezig zijn...")
             wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div[data-component='acco-card']")))
             logging.info("Deal-kaarten zijn nu aanwezig. Pagina wordt geparsed.")
         except TimeoutException:
             logging.error("FATALE FOUT: Deal-kaarten niet gevonden.")
-            driver.save_screenshot("final_failure.png")
-            return
+            return # Stop het script hier, we hebben de screenshot al
 
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         results = soup.find_all('div', {'data-component': 'acco-card'})
