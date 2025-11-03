@@ -14,7 +14,8 @@ jobs:
 
     steps:
       - name: 1. Code ophalen uit de repository
-        uses: actions/checkout@v3
+        # Versie geüpdatet naar v4
+        uses: actions/checkout@v4
 
       - name: 2. Python installeren
         uses: actions/setup-python@v4
@@ -36,15 +37,12 @@ jobs:
         env:
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
       
-      # --- DEZE STAP IS TOEGEVOEGD ---
       - name: 6. Screenshot uploaden voor analyse
-        # Deze stap draait altijd, zelfs als de vorige stappen falen
         if: always()
-        uses: actions/upload-artifact@v3
+        # --- DEZE REGEL IS GEWIJZIGD ---
+        # Versie geüpdatet van v3 naar v4
+        uses: actions/upload-artifact@v4
         with:
-          # De naam van het downloadbare bestand in GitHub
           name: server-screenshot
-          # Het pad naar het bestand dat de bot heeft gemaakt
           path: server_view.png
-          # Voorkom een fout als het screenshot om een of andere reden niet gemaakt is
           if-no-files-found: ignore
