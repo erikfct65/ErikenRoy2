@@ -1,16 +1,16 @@
 name: VakantieDiscounter Deal Finder
 
 on:
-  # Draait de bot elke 15 minuten (0, 15, 30, 45 minuten na het hele uur)
+  # Draait de bot elke 15 minuten
   schedule:
     - cron: '*/15 * * * *'
   
-  # Hiermee kun je de bot ook handmatig starten via de "Actions" tab in GitHub
+  # Hiermee kun je de bot ook handmatig starten
   workflow_dispatch:
 
 jobs:
   scrape:
-    runs-on: ubuntu-latest # Draai op een Linux machine van GitHub
+    runs-on: ubuntu-latest
 
     steps:
       - name: 1. Code ophalen uit de repository
@@ -34,5 +34,17 @@ jobs:
       - name: 5. De bot draaien
         run: python discounter_bot.py
         env:
-          # Hier wordt je geheime webhook URL veilig doorgegeven aan het script
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+      
+      # --- DEZE STAP IS TOEGEVOEGD ---
+      - name: 6. Screenshot uploaden voor analyse
+        # Deze stap draait altijd, zelfs als de vorige stappen falen
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          # De naam van het downloadbare bestand in GitHub
+          name: server-screenshot
+          # Het pad naar het bestand dat de bot heeft gemaakt
+          path: server_view.png
+          # Voorkom een fout als het screenshot om een of andere reden niet gemaakt is
+          if-no-files-found: ignore
