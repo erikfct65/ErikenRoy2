@@ -36,61 +36,76 @@ def send_discord_notification(message):
 
 def scrape_vakantiediscounter():
     site_name = "VakantieDiscounter"
-    logging.info(f"[{site_name}] Start check...")
+    logging.info(f"[{site_name}] Start check met 'onder de radar' strategie...")
     driver = None
     try:
-        logging.info("Browser (undetected_chromedriver) wordt opgestart in headless modus...")
+        logging.info("Browser wordt opgestart met menselijke eigenschappen...")
         options = uc.ChromeOptions()
-        options.add_argument('--headless')
+        options.add_argument('--headless=new') # 'new' is de modernere headless-modus
         options.add_argument('--no-sandbox')
-        options.add_argument('--disable-dev-sh-usage')
+        options.add_argument('--disable-dev-shm-usage')
+        
+        # --- STRATEGIE AANPASSINGEN ---
+        # 1. Forceer een veelvoorkomende User-Agent
+        options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36')
+        # 2. Stel een standaard, realistische browsergrootte in
+        options.add_argument('window-size=1920,1080')
+        
         driver = uc.Chrome(options=options)
-        driver.maximize_window()
         logging.info("Browser succesvol opgestart.")
         
-        url = "https://www.vakantiediscounter.nl/zoekresultaten?arrivaldateend=2026-04-30&countrycode=AN&departuredatestart=2026-02-01&region=curacao&room=2_0_0&transporttype=VL&trip_duration=9"
-        logging.info(f"Pagina wordt geladen: {url}")
-        driver.get(url)
-        
-        wait = WebDriverWait(driver, 10)
+        wait = WebDriverWait(driver, 15) # Iets meer geduld
 
-        # Reeks van pop-up handelingen
+        # --- STRATEGIE AANPASSING: BEZOEK EERST DE HOMEPAGE ---
+        homepage_url = "https://www.vakantiediscounter.nl/"
+        logging.info(f"Stap 1: Bezoek de homepage om cookies te zetten: {homepage_url}")
+        driver.get(homepage_url)
+        
+        # Wacht op de cookie-banner op de homepage en klik deze weg
         try:
             wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Alles toestaan')]"))).click()
-            logging.info("Cookie banner weggeklikt.")
-        except: logging.warning("Cookie banner niet gevonden/geklikt.")
-        try:
-            wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@aria-label='Sluiten']"))).click()
-            logging.info("'Vakantietegoed' pop-up gesloten.")
-        except: logging.warning("'Vakantietegoed' pop-up niet gevonden/geklikt.")
+            logging.info("Cookie banner op homepage weggeklikt.")
+            time.sleep(2) # Korte pauze
+        except:
+            logging.warning("Cookie banner niet gevonden op de homepage, of al geaccepteerd.")
+
+        # --- GA NU PAS NAAR DE DEALS PAGINA ---
+        deals_url = "https://www.vakantiediscounter.nl/zoekresultaten?arrivaldateend=2026-04-30&countrycode=AN&departuredatestart=2026-02-01&region=curacao&room=2_0_0&transporttype=VL&trip_duration=9"
+        logging.info(f"Stap 2: Navigeer nu naar de deals pagina: {deals_url}")
+        driver.get(deals_url)
+        
+        # We hoeven de pop-ups waarschijnlijk niet opnieuw te sluiten, maar voor de zekerheid proberen we het.
+        # De 'try...except' blokken vangen dit netjes af als ze niet verschijnen.
+        try: wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@aria-label='Sluiten']"))).click(); logging.info("'Vakantietegoed' pop-up gesloten.")
+        except: pass
         try:
             wait.until(EC.element_to_be_clickable((By.XPATH, "//label[contains(., 'Nee')]"))).click()
             wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Volgende')]"))).click()
             logging.info("'Kaart gebruikt' pop-up verwerkt.")
-        except: logging.warning("'Kaart gebruikt' pop-up niet gevonden/verwerkt.")
+        except: pass
         try:
             wait.until(EC.element_to_be_clickable((By.XPATH, "//button[text()='Sluiten']"))).click()
             logging.info("'Bedankt voor feedback' melding gesloten.")
-        except: logging.warning("'Bedankt voor feedback' melding niet gevonden/geklikt.")
-        
-        # --- DEBUGGING STAP: ALTIJD EEN SCREENSHOT MAKEN ---
-        logging.info("Alle pop-ups verwerkt. Screenshot wordt gemaakt voor analyse...")
-        screenshot_filename = "server_view.png"
-        driver.save_screenshot(screenshot_filename)
-        logging.info(f"Screenshot '{screenshot_filename}' succesvol opgeslagen.")
+        except: pass
+
+        # --- DEBUGGING SCREENSHOT BLIJFT ACTIEF ---
+        logging.info("Screenshot wordt gemaakt voor analyse...")
+        driver.save_screenshot("server_view.png")
+        logging.info("Screenshot 'server_view.png' opgeslagen.")
         
         try:
-            logging.info("Wachten tot de deal-kaarten ('AccoCard') aanwezig zijn...")
+            logging.info("Wachten tot de deal-kaarten aanwezig zijn...")
             wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div[data-component='acco-card']")))
-            logging.info("Deal-kaarten zijn nu aanwezig. Pagina wordt geparsed.")
+            logging.info("Deal-kaarten zijn nu aanwezig.")
         except TimeoutException:
-            logging.error("FATALE FOUT: Deal-kaarten niet gevonden.")
-            return # Stop het script hier, we hebben de screenshot al
+            logging.error("FATALE FOUT: Zelfs met de nieuwe strategie zijn de deal-kaarten niet geladen.")
+            return
 
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         results = soup.find_all('div', {'data-component': 'acco-card'})
         
         logging.info(f"SUCCESS: {len(results)} deals gevonden op de pagina.")
+        # ... De rest van de code voor het parsen en versturen blijft exact hetzelfde ...
         deals_found_count = 0
         for item in results:
             title_element = item.select_one('h3.AccoCard__title > a[data-component="acco-link"]')
@@ -103,7 +118,6 @@ def scrape_vakantiediscounter():
                 try:
                     price_pp = float(price_text.replace('€', '').replace('.', '').replace(',', '.').strip())
                 except (ValueError, TypeError):
-                    logging.warning(f"Prijsconversie mislukt voor: '{price_text}'")
                     continue
                 
                 if price_pp < MAX_PRICE:
